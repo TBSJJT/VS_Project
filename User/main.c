@@ -17,17 +17,19 @@ uint8_t NRF_Val[32];
 uint8_t KeyNum;
 
 
-int16_t TargetSpeedA;
+int16_t TargetSpeedA;//目标速度
 int16_t TargetSpeedB;
 
-volatile extern uint8_t SpeedPIDFlag;
-volatile extern float outA;
+float kp = 1.0f;
+float ki = 0.1f;
+float kd = 0.0f;
+
+
+volatile  int32_t Left_Speed;//编码器速度
+volatile  int32_t Right_Speed;
+
+volatile extern float outA;//PID输出
 volatile extern float outB;
-
-volatile int32_t Left_Speed;
-volatile int32_t Right_Speed;
-
-static uint8_t disp_div = 0;
 
 int main(void)
 {
@@ -41,7 +43,8 @@ int main(void)
 	
 		Key_Init();//PE11 PE9
 
-		OLED_ShowString(0,0,"TEST",OLED_8X16);
+		OLED_ShowString(0,0,"pidoutA",OLED_8X16);
+		OLED_ShowString(0,15,"pidoutB",OLED_8X16);
 		OLED_Update();
 		
 		//NRF24L01_Init();
@@ -51,28 +54,25 @@ int main(void)
 		while (1)
 		{
 
-				if (SpeedPIDFlag == 1)
-				{
-						SpeedPIDFlag = 0;
-						Left_Speed  = Read_Speed(8);
-						Right_Speed = Read_Speed(5);
-
-						Speed_PID(30, 30, (int16_t)Left_Speed, (int16_t)Right_Speed);
-				if (++disp_div >= 10)   // 10 * 10ms = 100ms
-						{
-								disp_div = 0;
-								OLED_ShowSignedNum(50,15,Left_Speed,  3,OLED_8X16);
-								OLED_ShowSignedNum(50,30,Right_Speed, 3,OLED_8X16);
-								OLED_ShowFloatNum(0,15,outA,3,1,OLED_8X16);
-								OLED_ShowFloatNum(0,30,outB,3,1,OLED_8X16);
-							
-								OLED_Update();
-						}
-//						Load(99,99);
-				}
-
+				OLED_ShowFloatNum(0,0,outA,3,1,OLED_8X16);
+				OLED_ShowFloatNum(0,15,outB,3,1,OLED_8X16);
+			
+				OLED_Update();
 
 		}
 }
 
+//10ms运算一次速度PID
+void TIM6_DAC_IRQHandler(void)
+{
+    if (TIM_GetITStatus(TIM6, TIM_IT_Update) != RESET)
+    {
+        TIM_ClearITPendingBit(TIM6, TIM_IT_Update);
+        				
+				Left_Speed  = Read_Speed(8);
+				Right_Speed = Read_Speed(5);
+			
+				Speed_PID(TargetSpeedA, TargetSpeedB, (int16_t)Left_Speed, (int16_t)Right_Speed);
+    }
+}
 

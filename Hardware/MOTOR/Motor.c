@@ -17,12 +17,14 @@
 #define PWM_MAX   99   
 #define PWM_MIN  -99
 
-volatile int16_t current_SpeedA;
-volatile int16_t current_SpeedB;
+
 volatile float outA;
 volatile float outB;
 
-uint8_t SpeedPIDFlag;
+extern float kp;
+extern float ki;
+extern float kd;
+
 
 static inline void PIN_H(GPIO_TypeDef* port, uint16_t pin) { GPIO_SetBits(port, pin); }
 static inline void PIN_L(GPIO_TypeDef* port, uint16_t pin) { GPIO_ResetBits(port, pin); }
@@ -96,23 +98,19 @@ void Speed_PID(int16_t target_SpeedA,int16_t target_SpeedB,
 {
     static int16_t lasterra = 0;
     static int32_t suma = 0;
-    int16_t erra = target_SpeedA - current_SpeedA;
-
+    int16_t erra;
+		lasterra = erra;
+		erra= target_SpeedA - current_SpeedA;
+		suma += erra;
+	
     static int16_t lasterrb = 0;
     static int32_t sumb = 0;
-    int16_t errb = target_SpeedB - current_SpeedB;
-
-    float kp = 1.0f;
-    float ki = 0.1f;
-    float kd = 0.0f;
-
-    // ===== 积分=====
-    suma += erra;
+    int16_t errb ;
+		lasterrb = errb;
+		errb = target_SpeedB - current_SpeedB;  
     sumb += errb;
 
-    // ===== 积分限幅=====
-    // 先用 800 作为起步值：ki=0.1 时，积分项最大约 80PWM
-    if (suma > 800)  suma = 800;
+		if (suma > 800)  suma = 800;
     if (suma < -800) suma = -800;
     if (sumb > 800)  sumb = 800;
     if (sumb < -800) sumb = -800;
@@ -120,8 +118,7 @@ void Speed_PID(int16_t target_SpeedA,int16_t target_SpeedB,
     //kd=0
     int16_t deltaa = erra - lasterra;
     int16_t deltab = errb - lasterrb;
-    lasterra = erra;
-    lasterrb = errb;
+
 
      outA = kp*erra + ki*(float)suma + kd*deltaa;
      outB = kp*errb + ki*(float)sumb + kd*deltab;
@@ -130,13 +127,3 @@ void Speed_PID(int16_t target_SpeedA,int16_t target_SpeedB,
 }
 
 
-//10ms运算一次速度PID
-void TIM6_DAC_IRQHandler(void)
-{
-    if (TIM_GetITStatus(TIM6, TIM_IT_Update) != RESET)
-    {
-        TIM_ClearITPendingBit(TIM6, TIM_IT_Update);
-        				
-				SpeedPIDFlag = 1;
-    }
-}
